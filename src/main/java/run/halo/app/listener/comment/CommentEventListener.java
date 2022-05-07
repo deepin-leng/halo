@@ -4,9 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
 import run.halo.app.event.comment.CommentNewEvent;
 import run.halo.app.event.comment.CommentReplyEvent;
 import run.halo.app.exception.ServiceException;
@@ -27,6 +27,8 @@ import run.halo.app.service.SheetCommentService;
 import run.halo.app.service.SheetService;
 import run.halo.app.service.ThemeService;
 import run.halo.app.service.UserService;
+import run.halo.app.service.assembler.PostAssembler;
+import run.halo.app.service.assembler.SheetAssembler;
 import run.halo.app.utils.ValidationUtils;
 
 /**
@@ -52,7 +54,11 @@ public class CommentEventListener {
 
     private final PostService postService;
 
+    private final PostAssembler postAssembler;
+
     private final SheetService sheetService;
+
+    private final SheetAssembler sheetAssembler;
 
     private final JournalService journalService;
 
@@ -63,7 +69,9 @@ public class CommentEventListener {
     public CommentEventListener(MailService mailService, OptionService optionService,
         PostCommentService postCommentService, SheetCommentService sheetCommentService,
         JournalCommentService journalCommentService, PostService postService,
-        SheetService sheetService, JournalService journalService, UserService userService,
+        PostAssembler postAssembler, SheetService sheetService,
+        SheetAssembler sheetAssembler, JournalService journalService,
+        UserService userService,
         ThemeService themeService) {
         this.mailService = mailService;
         this.optionService = optionService;
@@ -71,19 +79,21 @@ public class CommentEventListener {
         this.sheetCommentService = sheetCommentService;
         this.journalCommentService = journalCommentService;
         this.postService = postService;
+        this.postAssembler = postAssembler;
         this.sheetService = sheetService;
+        this.sheetAssembler = sheetAssembler;
         this.journalService = journalService;
         this.userService = userService;
         this.themeService = themeService;
     }
 
     /**
-     * Received a new new comment event.
+     * Received a new comment event.
      *
      * @param newEvent new comment event.
      */
     @Async
-    @EventListener
+    @TransactionalEventListener
     public void handleCommentNewEvent(CommentNewEvent newEvent) {
         Boolean newCommentNotice = optionService
             .getByPropertyOrDefault(CommentProperties.NEW_NOTICE, Boolean.class, false);
@@ -109,7 +119,7 @@ public class CommentEventListener {
             log.debug("Got post comment: [{}]", postComment);
 
             BasePostMinimalDTO post =
-                postService.convertToMinimal(postService.getById(postComment.getPostId()));
+                postAssembler.convertToMinimal(postService.getById(postComment.getPostId()));
 
             data.put("pageFullPath", enabledAbsolutePath ? post.getFullPath() :
                 optionService.getBlogBaseUrl() + post.getFullPath());
@@ -127,7 +137,7 @@ public class CommentEventListener {
             log.debug("Got sheet comment: [{}]", sheetComment);
 
             BasePostMinimalDTO sheet =
-                sheetService.convertToMinimal(sheetService.getById(sheetComment.getPostId()));
+                sheetAssembler.convertToMinimal(sheetService.getById(sheetComment.getPostId()));
 
             data.put("pageFullPath", enabledAbsolutePath ? sheet.getFullPath() :
                 optionService.getBlogBaseUrl() + sheet.getFullPath());
@@ -171,7 +181,7 @@ public class CommentEventListener {
      * @param replyEvent reply comment event.
      */
     @Async
-    @EventListener
+    @TransactionalEventListener
     public void handleCommentReplyEvent(CommentReplyEvent replyEvent) {
         Boolean replyCommentNotice = optionService
             .getByPropertyOrDefault(CommentProperties.REPLY_NOTICE, Boolean.class, false);
@@ -211,7 +221,7 @@ public class CommentEventListener {
             baseAuthorEmail = baseComment.getEmail();
 
             BasePostMinimalDTO post =
-                postService.convertToMinimal(postService.getById(postComment.getPostId()));
+                postAssembler.convertToMinimal(postService.getById(postComment.getPostId()));
 
             data.put("pageFullPath", enabledAbsolutePath ? post.getFullPath() :
                 optionService.getBlogBaseUrl() + post.getFullPath());
@@ -244,7 +254,7 @@ public class CommentEventListener {
             baseAuthorEmail = baseComment.getEmail();
 
             BasePostMinimalDTO sheet =
-                sheetService.convertToMinimal(sheetService.getById(sheetComment.getPostId()));
+                sheetAssembler.convertToMinimal(sheetService.getById(sheetComment.getPostId()));
 
             data.put("pageFullPath", enabledAbsolutePath ? sheet.getFullPath() :
                 optionService.getBlogBaseUrl() + sheet.getFullPath());
